@@ -39,17 +39,17 @@ npm start
 
 ### Geração de PDF (Puppeteer)
 
-Por padrão o Puppeteer não baixa um Chromium próprio (`server/.puppeteerrc.cjs`
-tem `skipDownload: true`). Em runtime ele tenta, nesta ordem:
+Por padrão o Puppeteer baixa seu próprio Chromium durante o `npm install`
+(usado no `npm run setup`), então a geração de PDF funciona sem configuração
+adicional. Em runtime, o Chromium usado é resolvido nesta ordem:
 
 1. `PUPPETEER_EXECUTABLE_PATH` (variável de ambiente em `server/.env`)
-2. `/opt/pw-browsers/chromium` (ambientes com Chromium pré-instalado)
-3. O Chromium padrão do próprio Puppeteer, se disponível
+2. `/opt/pw-browsers/chromium` (ambientes que já têm um Chromium pré-instalado)
+3. O Chromium baixado pelo próprio Puppeteer
 
-Se nenhum Chromium for encontrado, defina `PUPPETEER_EXECUTABLE_PATH` em
-`server/.env` apontando para um Chrome/Chromium instalado localmente, ou
-remova `skipDownload` de `server/.puppeteerrc.cjs` para permitir o download
-automático na instalação.
+Se preferir reaproveitar um Chrome/Chromium já instalado na sua máquina (e
+pular o download), defina `PUPPETEER_EXECUTABLE_PATH` em `server/.env`
+apontando para o executável.
 
 ## Estrutura
 
