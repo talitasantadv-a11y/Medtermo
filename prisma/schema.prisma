@@ -1,0 +1,121 @@
+// MediaTermo - schema do banco de dados (SQLite)
+// Enums são modelados como String pois o conector SQLite do Prisma não suporta
+// tipos enum nativos; a validação dos valores permitidos é feita na camada de aplicação
+// (ver server/src/types e client/src/types para os valores aceitos).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id                    Int      @id @default(autoincrement())
+  nomeCompleto          String   @map("nome_completo")
+  email                 String   @unique
+  senhaHash             String   @map("senha_hash")
+  registroProfissional  String?  @map("registro_profissional")
+  telefone              String?
+  cargo                 String?  @default("Mediador(a) Judicial")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  modelos   Modelo[]
+  processos Processo[]
+
+  @@map("usuarios")
+}
+
+model Modelo {
+  id                 Int      @id @default(autoincrement())
+  usuarioId          Int      @map("usuario_id")
+  nome               String
+  descricao          String?
+  // Armazenados como texto JSON serializado — o conector SQLite do Prisma
+  // não suporta o tipo Json nativamente (ver server/src/utils/json.ts).
+  blocos             String
+  camposCustomizados String?  @map("campos_customizados")
+  ativo              Boolean  @default(true)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  usuario  Usuario   @relation(fields: [usuarioId], references: [id])
+  sessoes  Sessao[]
+
+  @@map("modelos")
+}
+
+model Processo {
+  id               Int      @id @default(autoincrement())
+  numeroCnj        String   @unique @map("numero_cnj")
+  lotacao          String?
+  comarca          String?
+  classeProcessual String?  @map("classe_processual")
+  assunto          String?
+  usuarioId        Int      @map("usuario_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  usuario Usuario          @relation(fields: [usuarioId], references: [id])
+  partes  Parte[]
+  sessoes Sessao[]
+  uploads UploadProcesso[]
+
+  @@map("processos")
+}
+
+model Parte {
+  id            Int      @id @default(autoincrement())
+  processoId    Int      @map("processo_id")
+  polo          String // requerente | requerido
+  nomeCompleto  String   @map("nome_completo")
+  cpf           String?
+  advogadoNome  String?  @map("advogado_nome")
+  advogadoOab   String?  @map("advogado_oab")
+  isPreposto    Boolean  @default(false) @map("is_preposto")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  processo Processo @relation(fields: [processoId], references: [id], onDelete: Cascade)
+
+  @@map("partes")
+}
+
+model Sessao {
+  id                  Int       @id @default(autoincrement())
+  processoId          Int       @map("processo_id")
+  modeloId            Int       @map("modelo_id")
+  dataSessao           DateTime  @map("data_sessao")
+  horarioInicio       String    @map("horario_inicio")
+  horarioEncerramento String?   @map("horario_encerramento")
+  local               String?
+  modalidade          String // presencial | virtual
+  plataformaVirtual   String?   @map("plataforma_virtual")
+  presencas           String?
+  resultado           String? // acordo_total | acordo_parcial | sem_acordo | reagendamento | ausencia_requerente | ausencia_requerido
+  termosAcordo        String?   @map("termos_acordo")
+  dadosExtras         String?   @map("dados_extras")
+  reagendamentoData   DateTime? @map("reagendamento_data")
+  reagendamentoMotivo String?   @map("reagendamento_motivo")
+  status              String    @default("pendente") // pendente | em_andamento | finalizado
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  processo Processo @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  modelo   Modelo   @relation(fields: [modeloId], references: [id])
+
+  @@map("sessoes")
+}
+
+model UploadProcesso {
+  id             Int      @id @default(autoincrement())
+  processoId     Int      @map("processo_id")
+  arquivoNome    String   @map("arquivo_nome")
+  arquivoPath    String   @map("arquivo_path")
+  dadosExtraidos String?  @map("dados_extraidos")
+  status         String   @default("processando") // processando | extraido | erro
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  processo Processo @relation(fields: [processoId], references: [id], onDelete: Cascade)
+
+  @@map("uploads_processo")
+}
