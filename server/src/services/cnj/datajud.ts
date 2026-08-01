@@ -123,12 +123,18 @@ export async function consultarProcessoDatajud(
   if (!fonte) return null;
 
   const classe = fonte.classe as { nome?: string } | undefined;
-  const assuntos = fonte.assuntos as { nome?: string }[] | undefined;
+  const assuntosBrutos = (fonte.assuntos as unknown[] | undefined) ?? [];
   const orgaoJulgador = fonte.orgaoJulgador as { nome?: string } | undefined;
+
+  // Defensivo: a maioria dos tribunais retorna assuntos como objetos
+  // ({codigo, nome}), mas alguns respondem com o nome direto como string.
+  const assuntos = assuntosBrutos
+    .map((a) => (typeof a === "string" ? a : (a as { nome?: string } | null)?.nome))
+    .filter((n): n is string => !!n);
 
   return {
     classe: classe?.nome,
-    assuntos: (assuntos ?? []).map((a) => a.nome).filter((n): n is string => !!n),
+    assuntos,
     orgaoJulgador: orgaoJulgador?.nome,
     tribunal: fonte.tribunal as string | undefined,
     grau: fonte.grau as string | undefined,

@@ -41,7 +41,6 @@ export default function NovaMediacao() {
   const [processo, setProcesso] = useState<Processo | null>(null);
 
   // Passo 2
-  const [modoEntrada, setModoEntrada] = useState<"escolher" | "upload" | "manual">("escolher");
   const [uploads, setUploads] = useState<UploadProcesso[]>([]);
   const [dadosConsolidados, setDadosConsolidados] = useState<DadosExtraidosProcesso | null>(null);
   const [dadosCnj, setDadosCnj] = useState<DadosCnjDatajud | null>(null);
@@ -112,7 +111,11 @@ export default function NovaMediacao() {
         setDadosCnj(dados);
         toast.success("Dados oficiais do CNJ carregados.");
       } else {
-        toast.error("Processo não encontrado na base do DataJud (CNJ).");
+        toast.error(
+          "Processo não encontrado no DataJud. Isso é comum em mediações pré-processuais ou processos " +
+            "muito recentes (indexação do CNJ tem atraso) — envie o PDF ou preencha os dados manualmente.",
+          { duration: 6000 }
+        );
       }
     } catch (erro) {
       toast.error(mensagemErro(erro));
@@ -253,80 +256,71 @@ export default function NovaMediacao() {
 
         {passo === 2 && processo && (
           <div className="space-y-6">
-            {modoEntrada === "escolher" && (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <button className="card text-left hover:border-brand-400" onClick={() => setModoEntrada("upload")}>
-                  <p className="font-medium text-neutral-800">📄 Upload de PDF</p>
-                  <p className="mt-1 text-xs text-neutral-500">
-                    Envie o PDF do processo exportado do PJe e deixe o sistema extrair os dados.
-                  </p>
-                </button>
-                <button
-                  className="card text-left hover:border-brand-400"
-                  onClick={() => {
-                    setModoEntrada("manual");
-                    setDadosConsolidados(null);
-                  }}
-                >
-                  <p className="font-medium text-neutral-800">✍️ Preenchimento manual</p>
-                  <p className="mt-1 text-xs text-neutral-500">
-                    Preencha os dados do processo e das partes manualmente.
-                  </p>
-                </button>
-              </div>
-            )}
+            <p className="text-sm text-neutral-500">
+              Use qualquer combinação das opções abaixo — envie o PDF, busque no CNJ e complete ou
+              corrija o que faltar manualmente. Nada aqui é excludente.
+            </p>
 
-            {modoEntrada === "upload" && (
-              <div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="card">
+                <p className="font-medium text-neutral-800">📄 Upload de PDF</p>
+                <p className="mt-1 mb-3 text-xs text-neutral-500">
+                  Envie o PDF do processo exportado do PJe e deixe o sistema extrair os dados.
+                </p>
                 <PdfDropzone
                   processoId={processo.id}
                   uploads={uploads}
                   onUploadsAlterados={() => atualizarConsolidados(processo.id)}
                 />
               </div>
-            )}
 
-            {modoEntrada !== "escolher" && (
-              <>
-                <hr className="border-neutral-100" />
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-                  <p className="text-xs text-neutral-500">
-                    Também é possível puxar classe, assunto e órgão julgador direto do CNJ
-                    (não substitui os dados das partes, que vêm do PDF).
-                  </p>
-                  <button
-                    type="button"
-                    className="btn-secondary shrink-0 !px-3 !py-1.5 text-xs"
-                    onClick={handleBuscarCnj}
-                    disabled={buscandoCnj}
-                  >
-                    {buscandoCnj && <Spinner />}
-                    🔍 Buscar no CNJ (DataJud)
-                  </button>
-                </div>
-                <div>
-                  <h3 className="mb-3 text-sm font-semibold text-neutral-700">Revisão dos dados</h3>
-                  <RevisaoDados
-                    dadosExtraidos={dadosConsolidados}
-                    dadosCnj={dadosCnj}
-                    onDadosValidados={(dados, valido) => setRevisao({ dados, valido })}
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <button className="btn-secondary" onClick={() => setModoEntrada("escolher")}>
-                    Voltar
-                  </button>
-                  <button
-                    className="btn-primary flex-1"
-                    onClick={handleConfirmarProcesso}
-                    disabled={!revisao?.valido || salvandoProcesso}
-                  >
-                    {salvandoProcesso && <Spinner />}
-                    Confirmar dados e continuar
-                  </button>
-                </div>
-              </>
-            )}
+              <div className="card flex flex-col">
+                <p className="font-medium text-neutral-800">🔍 Buscar no CNJ (DataJud)</p>
+                <p className="mt-1 mb-3 flex-1 text-xs text-neutral-500">
+                  Puxa classe, assunto e órgão julgador direto da base oficial do CNJ (não substitui os
+                  dados das partes, que vêm do PDF ou são preenchidos manualmente — por LGPD o DataJud
+                  não retorna nome/CPF). Pode não encontrar mediações pré-processuais ou processos muito
+                  recentes.
+                </p>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleBuscarCnj}
+                  disabled={buscandoCnj}
+                >
+                  {buscandoCnj && <Spinner />}
+                  Buscar no CNJ (DataJud)
+                </button>
+              </div>
+            </div>
+
+            <hr className="border-neutral-100" />
+
+            <div>
+              <h3 className="mb-1 text-sm font-semibold text-neutral-700">Dados do processo</h3>
+              <p className="mb-3 text-xs text-neutral-500">
+                Revise o que foi extraído/preenchido acima e complete manualmente o que faltar.
+              </p>
+              <RevisaoDados
+                dadosExtraidos={dadosConsolidados}
+                dadosCnj={dadosCnj}
+                onDadosValidados={(dados, valido) => setRevisao({ dados, valido })}
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button className="btn-secondary" onClick={() => setPasso(1)}>
+                Voltar
+              </button>
+              <button
+                className="btn-primary flex-1"
+                onClick={handleConfirmarProcesso}
+                disabled={!revisao?.valido || salvandoProcesso}
+              >
+                {salvandoProcesso && <Spinner />}
+                Confirmar dados e continuar
+              </button>
+            </div>
           </div>
         )}
 
