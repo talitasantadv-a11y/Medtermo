@@ -31,6 +31,7 @@ function usuarioPublico(usuario: {
   registroProfissional: string | null;
   telefone: string | null;
   cargo: string | null;
+  datajudApiKey: string | null;
 }) {
   return {
     id: usuario.id,
@@ -39,6 +40,7 @@ function usuarioPublico(usuario: {
     registroProfissional: usuario.registroProfissional,
     telefone: usuario.telefone,
     cargo: usuario.cargo,
+    datajudApiKey: usuario.datajudApiKey,
   };
 }
 
@@ -127,6 +129,7 @@ const perfilSchema = z.object({
   registroProfissional: z.string().optional(),
   telefone: z.string().optional(),
   cargo: z.string().optional(),
+  datajudApiKey: z.string().optional(),
   senhaAtual: z.string().optional(),
   novaSenha: z.string().min(6).optional(),
 });
@@ -136,8 +139,15 @@ export async function atualizarPerfil(req: Request, res: Response) {
   if (!parsed.success) {
     return res.status(400).json({ erro: parsed.error.issues[0].message });
   }
-  const { nomeCompleto, registroProfissional, telefone, cargo, senhaAtual, novaSenha } =
-    parsed.data;
+  const {
+    nomeCompleto,
+    registroProfissional,
+    telefone,
+    cargo,
+    datajudApiKey,
+    senhaAtual,
+    novaSenha,
+  } = parsed.data;
 
   const usuario = await prisma.usuario.findUnique({ where: { id: req.usuario!.id } });
   if (!usuario) return res.status(404).json({ erro: "Usuário não encontrado." });
@@ -147,6 +157,7 @@ export async function atualizarPerfil(req: Request, res: Response) {
     registroProfissional,
     telefone,
     cargo,
+    ...(datajudApiKey !== undefined ? { datajudApiKey: datajudApiKey || null } : {}),
   };
 
   if (novaSenha) {

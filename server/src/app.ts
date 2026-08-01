@@ -6,6 +6,8 @@ import authRoutes from "./routes/auth";
 import modeloRoutes from "./routes/modelos";
 import processoRoutes from "./routes/processos";
 import sessaoRoutes from "./routes/sessoes";
+import cejuscRoutes from "./routes/cejuscs";
+import { UPLOAD_DIR } from "./middleware/upload";
 
 /**
  * Monta a aplicação Express. Usado tanto pelo servidor "web" normal
@@ -24,11 +26,17 @@ export function createApp(options?: { clientDistPath?: string }) {
   app.use("/api/modelos", modeloRoutes);
   app.use("/api/processos", processoRoutes);
   app.use("/api/sessoes", sessaoRoutes);
+  app.use("/api/cejuscs", cejuscRoutes);
+
+  // Arquivos enviados pelo usuário que precisam ser exibidos no navegador
+  // (ex: logomarca do CEJUSC). PDFs de processo NÃO ficam aqui expostos —
+  // esses são lidos apenas internamente pelo servidor.
+  app.use("/uploads/logos", express.static(path.join(UPLOAD_DIR, "logos")));
 
   const clientDistPath = options?.clientDistPath;
   if (clientDistPath && fs.existsSync(clientDistPath)) {
     app.use(express.static(clientDistPath));
-    app.get(/^(?!\/api).*/, (_req, res) => {
+    app.get(/^(?!\/api)(?!\/uploads).*/, (_req, res) => {
       res.sendFile(path.join(clientDistPath, "index.html"));
     });
   }

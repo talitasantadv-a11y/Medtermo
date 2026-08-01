@@ -11,12 +11,19 @@ nada. O banco de dados fica em `%APPDATA%/mediatermo-desktop` (Windows).
   1. Prepara o ambiente (define `DATABASE_URL`, `UPLOAD_DIR` e um `JWT_SECRET`
      persistido em `app.getPath('userData')`);
   2. Sobe o servidor Express (`server/src/desktop.ts`), que na primeira
-     execução cria as tabelas do banco (a partir do SQL da migração inicial)
-     e semeia os dois modelos pré-cadastrados + usuário de demonstração;
+     execução (e a cada atualização) aplica as migrações do banco pendentes
+     (a partir do SQL de cada pasta em `prisma/migrations`, registrando as já
+     aplicadas) e semeia os dois modelos pré-cadastrados + usuário de
+     demonstração;
   3. Abre uma janela carregando `http://127.0.0.1:4899/`, servida pelo próprio
      Express (API + arquivos estáticos do client compilado).
-- A geração de PDF usa `webContents.printToPDF` do próprio Electron (não usa
-  Puppeteer no desktop), reaproveitando o Chromium já embutido.
+- A geração de **PDF** usa `webContents.printToPDF` do próprio Electron (não
+  usa Puppeteer no desktop), reaproveitando o Chromium já embutido. A geração
+  de **Word (.docx)** usa a biblioteca `docx` (puro JS) e funciona igual ao
+  modo web, incluindo logomarca do CEJUSC no cabeçalho.
+- A busca de dados no CNJ (DataJud) funciona normalmente no desktop, desde
+  que a máquina tenha acesso à internet e o mediador tenha cadastrado sua
+  chave da API em Perfil.
 - OCR de PDFs escaneados (tesseract.js) **não está disponível** no build
   desktop, para manter o instalador enxuto e evitar uma dependência de rede em
   tempo de execução — PDFs digitais (a grande maioria dos exportados do PJe)

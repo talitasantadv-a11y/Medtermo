@@ -67,3 +67,19 @@ export async function listarUploads(
 export async function removerUpload(processoId: number, uploadId: number): Promise<void> {
   await api.delete(`/processos/${processoId}/uploads/${uploadId}`);
 }
+
+export interface DadosCnjDatajud {
+  classe?: string;
+  assuntos: string[];
+  orgaoJulgador?: string;
+  tribunal?: string;
+  grau?: string;
+  dataAjuizamento?: string;
+}
+
+export async function consultarCnj(
+  numeroCnj: string
+): Promise<{ encontrado: boolean; dados?: DadosCnjDatajud }> {
+  const { data } = await api.get("/processos/consultar-cnj", { params: { numeroCnj } });
+  return data;
+}

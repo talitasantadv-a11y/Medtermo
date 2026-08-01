@@ -23,17 +23,37 @@ model Usuario {
   registroProfissional  String?  @map("registro_profissional")
   telefone              String?
   cargo                 String?  @default("Mediador(a) Judicial")
+  datajudApiKey         String?  @map("datajud_api_key")
   createdAt             DateTime @default(now()) @map("created_at")
 
   modelos   Modelo[]
   processos Processo[]
+  cejuscs   Cejusc[]
 
   @@map("usuarios")
+}
+
+model Cejusc {
+  id        Int      @id @default(autoincrement())
+  usuarioId Int      @map("usuario_id")
+  nome      String
+  logoPath  String?  @map("logo_path")
+  endereco  String?
+  telefone  String?
+  email     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  usuario Usuario  @relation(fields: [usuarioId], references: [id])
+  modelos Modelo[]
+
+  @@map("cejuscs")
 }
 
 model Modelo {
   id                 Int      @id @default(autoincrement())
   usuarioId          Int      @map("usuario_id")
+  cejuscId           Int?     @map("cejusc_id")
   nome               String
   descricao          String?
   // Armazenados como texto JSON serializado — o conector SQLite do Prisma
@@ -44,8 +64,9 @@ model Modelo {
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
-  usuario  Usuario   @relation(fields: [usuarioId], references: [id])
-  sessoes  Sessao[]
+  usuario Usuario  @relation(fields: [usuarioId], references: [id])
+  cejusc  Cejusc?  @relation(fields: [cejuscId], references: [id])
+  sessoes Sessao[]
 
   @@map("modelos")
 }

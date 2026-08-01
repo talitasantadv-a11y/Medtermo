@@ -33,6 +33,7 @@ export async function atualizarPerfil(payload: Partial<{
   registroProfissional: string;
   telefone: string;
   cargo: string;
+  datajudApiKey: string;
   senhaAtual: string;
   novaSenha: string;
 }>): Promise<Usuario> {

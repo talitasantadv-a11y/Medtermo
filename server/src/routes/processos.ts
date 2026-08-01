@@ -2,6 +2,7 @@ import { Router } from "express";
 import { autenticar } from "../middleware/auth";
 import {
   buscarPorCnj,
+  consultarCnj,
   criarOuAtualizarProcesso,
   iniciarProcesso,
   listarProcessos,
@@ -15,6 +16,7 @@ router.use(autenticar);
 
 router.get("/", listarProcessos);
 router.get("/buscar", buscarPorCnj);
+router.get("/consultar-cnj", consultarCnj);
 router.post("/iniciar", iniciarProcesso);
 router.get("/:id", obterProcesso);
 router.post("/", criarOuAtualizarProcesso);

@@ -16,6 +16,10 @@ export function BadgeExtraidoDoPdf() {
   return <Badge cor="azul">extraído do PDF</Badge>;
 }
 
+export function BadgeViaCnj() {
+  return <Badge cor="verde">via DataJud (CNJ)</Badge>;
+}
+
 export function BadgeConfianca({ nivel }: { nivel: "alta" | "media" | "baixa" }) {
   const cor = nivel === "alta" ? "verde" : nivel === "media" ? "amarelo" : "vermelho";
   const texto = nivel === "alta" ? "confiança alta" : nivel === "media" ? "confiança média" : "confiança baixa";

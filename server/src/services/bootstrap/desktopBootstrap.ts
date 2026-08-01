@@ -1,4 +1,5 @@
 import fs from "fs";
+import path from "path";
 import bcrypt from "bcryptjs";
 import { prisma } from "../../utils/prisma";
 import { paraJson } from "../../utils/json";
@@ -10,19 +11,67 @@ import {
 
 /**
  * No app desktop não há `prisma migrate deploy` disponível (não empacotamos o
- * motor de migração do Prisma). Em vez disso, na primeira execução aplicamos
- * o SQL da migração inicial diretamente via `$executeRawUnsafe` e, a partir
- * daí, o Prisma Client cuida de toda leitura/escrita normalmente.
+ * motor de migração do Prisma). Em vez disso, aplicamos o SQL de cada pasta
+ * de migração diretamente via `$executeRawUnsafe`, registrando o nome de cada
+ * uma em `_desktop_migrations` para nunca reaplicar — o que também permite
+ * que futuras atualizações do app apliquem só as migrações novas.
  */
-export async function bootstrapBancoDeDados(migrationSqlPath: string): Promise<void> {
-  const jaExiste = await tabelaExiste("usuarios");
-  if (jaExiste) return;
+export async function bootstrapBancoDeDados(migrationsDir: string): Promise<void> {
+  await garantirTabelaDeControle();
 
-  if (!fs.existsSync(migrationSqlPath)) {
-    throw new Error(`Arquivo de migração não encontrado: ${migrationSqlPath}`);
+  if (!fs.existsSync(migrationsDir)) {
+    throw new Error(`Diretório de migrações não encontrado: ${migrationsDir}`);
   }
 
-  const sql = fs.readFileSync(migrationSqlPath, "utf-8");
+  const pastas = fs
+    .readdirSync(migrationsDir, { withFileTypes: true })
+    .filter((entrada) => entrada.isDirectory())
+    .map((entrada) => entrada.name)
+    .sort();
+
+  for (const pasta of pastas) {
+    if (await migracaoJaAplicada(pasta)) continue;
+
+    const arquivoSql = path.join(migrationsDir, pasta, "migration.sql");
+    if (!fs.existsSync(arquivoSql)) continue;
+
+    for (const statement of statementsDoArquivo(arquivoSql)) {
+      try {
+        await prisma.$executeRawUnsafe(statement);
+      } catch (erro) {
+        // Instalação vinda de uma versão anterior do app pode já ter algumas
+        // dessas tabelas/colunas — trata como idempotente e segue em frente.
+        const mensagem = erro instanceof Error ? erro.message : String(erro);
+        if (!/already exists|duplicate column/i.test(mensagem)) throw erro;
+      }
+    }
+
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO _desktop_migrations (nome) VALUES (?)`,
+      pasta
+    );
+  }
+}
+
+async function garantirTabelaDeControle(): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS _desktop_migrations (
+      nome TEXT PRIMARY KEY,
+      aplicado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`
+  );
+}
+
+async function migracaoJaAplicada(nome: string): Promise<boolean> {
+  const linhas = await prisma.$queryRawUnsafe<{ nome: string }[]>(
+    `SELECT nome FROM _desktop_migrations WHERE nome = ?`,
+    nome
+  );
+  return linhas.length > 0;
+}
+
+function statementsDoArquivo(caminho: string): string[] {
+  const sql = fs.readFileSync(caminho, "utf-8");
   // Remove linhas de comentário (ex: "-- CreateTable") antes de dividir em
   // statements — cada statement gerado pelo Prisma vem precedido de um
   // comentário, então filtrar por "começa com --" descartaria tudo.
@@ -30,26 +79,10 @@ export async function bootstrapBancoDeDados(migrationSqlPath: string): Promise<v
     .split("\n")
     .filter((linha) => !linha.trim().startsWith("--"))
     .join("\n");
-  const statements = semComentarios
+  return semComentarios
     .split(";")
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
-
-  for (const statement of statements) {
-    await prisma.$executeRawUnsafe(statement);
-  }
-}
-
-async function tabelaExiste(nome: string): Promise<boolean> {
-  try {
-    const resultado = await prisma.$queryRawUnsafe<{ name: string }[]>(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
-      nome
-    );
-    return resultado.length > 0;
-  } catch {
-    return false;
-  }
 }
 
 export async function semearDadosIniciais(): Promise<void> {

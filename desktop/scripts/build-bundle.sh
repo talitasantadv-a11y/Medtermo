@@ -25,8 +25,7 @@ mkdir -p "$BUNDLE_DIR/server" "$BUNDLE_DIR/client" "$BUNDLE_DIR/prisma"
 cp -a "$ROOT_DIR/server/dist" "$BUNDLE_DIR/server/dist"
 cp -a "$ROOT_DIR/client/dist" "$BUNDLE_DIR/client/dist"
 
-MIGRATION_SQL=$(find "$ROOT_DIR/prisma/migrations" -maxdepth 2 -name "migration.sql" | sort | tail -n 1)
-cp "$MIGRATION_SQL" "$BUNDLE_DIR/prisma/migration.sql"
+cp -a "$ROOT_DIR/prisma/migrations" "$BUNDLE_DIR/prisma/migrations"
 
 echo "==> Copiando node_modules (isso pode levar um tempo)..."
 cp -a "$ROOT_DIR/node_modules" "$BUNDLE_DIR/node_modules"

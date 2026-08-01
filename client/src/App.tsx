@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import NovaMediacao from "./pages/NovaMediacao";
 import Processo from "./pages/Processo";
 import Modelos from "./pages/Modelos";
+import Cejuscs from "./pages/Cejuscs";
 import Perfil from "./pages/Perfil";
 
 function RotaProtegida({ children }: { children: ReactNode }) {
@@ -32,6 +33,7 @@ export default function App() {
       <Route path="/nova-mediacao" element={<RotaProtegida><NovaMediacao /></RotaProtegida>} />
       <Route path="/processos/:id" element={<RotaProtegida><Processo /></RotaProtegida>} />
       <Route path="/modelos" element={<RotaProtegida><Modelos /></RotaProtegida>} />
+      <Route path="/cejuscs" element={<RotaProtegida><Cejuscs /></RotaProtegida>} />
       <Route path="/perfil" element={<RotaProtegida><Perfil /></RotaProtegida>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -20,6 +20,7 @@ export interface ModeloPayload {
   blocos: Bloco[];
   camposCustomizados?: CampoCustomizadoDef[];
   ativo?: boolean;
+  cejuscId?: number | null;
 }
 
 export async function criarModelo(payload: ModeloPayload): Promise<Modelo> {

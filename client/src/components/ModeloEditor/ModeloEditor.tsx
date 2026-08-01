@@ -1,11 +1,12 @@
-import { useMemo, useState } from "react";
-import { Modelo } from "../../types";
+import { useEffect, useMemo, useState } from "react";
+import { Cejusc, Modelo } from "../../types";
 import { Bloco, ResultadoSessao, TipoBloco } from "../../types/termo";
 import { BlocoFormFields } from "./BlocoFormFields";
 import { CondicionalFilhos } from "./CondicionalFilhos";
 import { TermoPreview } from "../TermoPreview/TermoPreview";
 import { DADOS_EXEMPLO_PADRAO, montarTermoPreview } from "../../utils/montarTermoPreview";
 import { Spinner } from "../common/Spinner";
+import { listarCejuscs, urlDoLogo } from "../../services/cejuscService";
 
 const TIPOS_ADICIONAVEIS: { tipo: TipoBloco; label: string }[] = [
   { tipo: "cabecalho", label: "Cabeçalho" },
@@ -79,6 +80,7 @@ export interface ModeloEditorPayload {
   descricao: string;
   blocos: Bloco[];
   ativo: boolean;
+  cejuscId: number | null;
 }
 
 export function ModeloEditor({
@@ -95,10 +97,21 @@ export function ModeloEditor({
   const [nome, setNome] = useState(modeloInicial?.nome || "");
   const [descricao, setDescricao] = useState(modeloInicial?.descricao || "");
   const [ativo, setAtivo] = useState(modeloInicial?.ativo ?? true);
+  const [cejuscId, setCejuscId] = useState<number | null>(modeloInicial?.cejuscId ?? null);
+  const [cejuscs, setCejuscs] = useState<Cejusc[]>([]);
   const [blocos, setBlocos] = useState<Bloco[]>(modeloInicial?.blocos || []);
   const [expandidoId, setExpandidoId] = useState<string | null>(null);
   const [arrastandoIndice, setArrastandoIndice] = useState<number | null>(null);
   const [resultadoExemplo, setResultadoExemplo] = useState<ResultadoSessao>("acordo_total");
+
+  useEffect(() => {
+    listarCejuscs().then(setCejuscs).catch(() => {});
+  }, []);
+
+  const cejuscSelecionado = useMemo(
+    () => cejuscs.find((c) => c.id === cejuscId) || null,
+    [cejuscs, cejuscId]
+  );
 
   const preview = useMemo(
     () => montarTermoPreview(blocos, { ...DADOS_EXEMPLO_PADRAO, resultado: resultadoExemplo }),
@@ -129,7 +142,7 @@ export function ModeloEditor({
   }
 
   function handleSalvar() {
-    onSalvar({ nome, descricao, blocos, ativo });
+    onSalvar({ nome, descricao, blocos, ativo, cejuscId });
   }
 
   return (
@@ -143,6 +156,24 @@ export function ModeloEditor({
           <div>
             <label className="label">Descrição</label>
             <input className="input" value={descricao} onChange={(e) => setDescricao(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">CEJUSC (logomarca e rodapé do termo)</label>
+            <select
+              className="input"
+              value={cejuscId ?? ""}
+              onChange={(e) => setCejuscId(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">Nenhum</option>
+              {cejuscs.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-neutral-400">
+              Cadastre CEJUSCs na aba "CEJUSCs" do menu.
+            </p>
           </div>
           <label className="flex items-center gap-2 text-sm text-neutral-600">
             <input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} />
@@ -261,7 +292,20 @@ export function ModeloEditor({
           </select>
         </div>
         <div className="max-h-[80vh] overflow-y-auto rounded-lg bg-neutral-100 p-4">
-          <TermoPreview blocos={preview} />
+          <TermoPreview
+            blocos={preview}
+            cejusc={
+              cejuscSelecionado
+                ? {
+                    nome: cejuscSelecionado.nome,
+                    logoUrl: urlDoLogo(cejuscSelecionado),
+                    endereco: cejuscSelecionado.endereco,
+                    telefone: cejuscSelecionado.telefone,
+                    email: cejuscSelecionado.email,
+                  }
+                : null
+            }
+          />
         </div>
       </div>
     </div>

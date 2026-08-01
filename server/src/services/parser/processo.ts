@@ -1,5 +1,5 @@
 import { extrairCnjDoTexto, formatarCnj, validarCnj } from "./cnj";
-import { extrairCpfsDoTexto, validarCpf } from "./cpf";
+import { extrairDocumentosDoTexto, validarCpf } from "./cpf";
 import { extrairOabsDoTexto } from "./oab";
 
 export type Confianca = "alta" | "media" | "baixa";
@@ -13,6 +13,7 @@ export interface CampoExtraido {
 export interface ParteExtraida {
   polo: "requerente" | "requerido";
   nomeCompleto: string;
+  /** CPF ou CNPJ (partes podem ser pessoa física ou jurídica, ex: Fazenda Pública). */
   cpf?: string;
   cpfValido?: boolean;
   advogadoNome?: string;
@@ -30,15 +31,25 @@ export interface DadosExtraidosProcesso {
   partes: ParteExtraida[];
 }
 
+// "Polo Ativo/Passivo" é o rótulo mais comum na capa do PJe; os demais cobrem
+// nomenclaturas de outras classes processuais (execução, mandado de segurança
+// etc.) e de sistemas mais antigos.
 const ROTULOS_REQUERENTE = [
+  "polo ativo",
   "requerente",
   "autor",
   "autora",
   "reclamante",
   "exequente",
+  "exeqüente",
   "demandante",
+  "impetrante",
+  "embargante",
+  "credor",
+  "credora",
 ];
 const ROTULOS_REQUERIDO = [
+  "polo passivo",
   "requerido",
   "requerida",
   "reu",
@@ -47,7 +58,27 @@ const ROTULOS_REQUERIDO = [
   "reclamado",
   "reclamada",
   "executado",
+  "executada",
   "demandado",
+  "impetrado",
+  "embargado",
+  "devedor",
+  "devedora",
+];
+
+const ROTULOS_LOTACAO = [
+  "orgao julgador",
+  "vara",
+  "juizo",
+  "unidade judiciaria",
+  "unidade judiciária",
+  "cejusc",
+  "central de conciliacao",
+  "central de conciliação",
+  "nucleo permanente",
+  "núcleo permanente",
+  "lotacao",
+  "lotação",
 ];
 
 function normalizar(texto: string): string {
@@ -57,17 +88,75 @@ function normalizar(texto: string): string {
     .toLowerCase();
 }
 
+/**
+ * Constrói um padrão de regex tolerante a acentos a partir de uma palavra sem
+ * acento (ex: "orgao julgador" também casa "Órgão Julgador" no texto
+ * original) — necessário porque a extração do valor precisa rodar sobre o
+ * texto original (preservando acentuação do valor), não sobre a versão
+ * normalizada usada só para *localizar* o rótulo.
+ */
+function paraPadraoTolerante(palavra: string): string {
+  const mapaVogais: Record<string, string> = {
+    a: "[aàáâã]",
+    e: "[eèéê]",
+    i: "[iìíî]",
+    o: "[oòóôõ]",
+    u: "[uùúû]",
+    c: "[cç]",
+  };
+  return palavra
+    .split("")
+    .map((c) => mapaVogais[c] || c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("");
+}
+
+// Usado só para decidir se a linha seguinte a um rótulo é, ela própria, o
+// início de OUTRO campo conhecido (e portanto não deve ser lida como valor)
+// — não confundir com ROTULOS_REQUERENTE/REQUERIDO, que servem para
+// identificar o polo da parte.
+const ROTULOS_CONHECIDOS = [
+  ...ROTULOS_REQUERENTE,
+  ...ROTULOS_REQUERIDO,
+  ...ROTULOS_LOTACAO,
+  "cpf",
+  "cnpj",
+  "documento",
+  "tipo",
+  "advogado",
+  "advogada",
+  "oab",
+  "classe",
+  "assunto",
+  "comarca",
+  "foro",
+  "email",
+  "e-mail",
+  "telefone",
+  "numero do processo",
+  "número do processo",
+];
+
 function capturarValorAposRotulo(
   linhas: string[],
   indice: number,
-  rotuloRegexResto: string
+  rotulo: string
 ): string | null {
   const linha = linhas[indice];
-  const match = linha.match(new RegExp(`${rotuloRegexResto}\\s*[:\\-]\\s*(.+)$`, "i"));
+  const padrao = paraPadraoTolerante(rotulo);
+  // Permite texto extra entre o rótulo e o separador (ex: "Assunto Principal:").
+  const match = linha.match(new RegExp(`${padrao}[^:\\-\\n]{0,30}[:\\-]\\s*(.+)$`, "i"));
   if (match && match[1].trim()) return match[1].trim();
-  // valor pode estar na linha seguinte
+
+  // Valor pode estar isolado na linha seguinte (comum no padrão "Polo Ativo\nNOME").
+  // Só rejeitamos essa linha se ela mesma parecer o início de OUTRO campo
+  // conhecido — a simples presença de ":" não basta, pois o valor real pode
+  // trazer metadado entre parênteses (ex: "NOME (CPF: 111.222.333-44)").
   const proxima = linhas[indice + 1];
-  if (proxima && proxima.trim() && !proxima.includes(":")) return proxima.trim();
+  if (proxima && proxima.trim()) {
+    const proximaNorm = normalizar(proxima);
+    const pareceOutroRotulo = ROTULOS_CONHECIDOS.some((r) => proximaNorm.startsWith(r));
+    if (!pareceOutroRotulo) return proxima.trim();
+  }
   return null;
 }
 
@@ -130,36 +219,46 @@ function extrairPartes(linhas: string[]): ParteExtraida[] {
     const nome = capturarValorAposRotulo(linhas, i, rotuloUsado);
     if (!nome) continue;
 
-    // remove eventual CPF/OAB embutido no fim do nome
+    // remove eventual CPF/CNPJ/rótulo de tipo embutido no fim do nome
     const nomeLimpo = nome
+      .replace(/\(\s*(cpf|cnpj)[^)]*\)/gi, "") // ex: "NOME (CPF: 111.222.333-44)"
       .replace(/CPF[:\s]*[\d.\-]+/i, "")
+      .replace(/CNPJ[:\s]*[\d.\/\-]+/i, "")
+      .replace(/\(?(pessoa f[íi]sica|pessoa jur[íi]dica)\)?/i, "")
+      .replace(/\(\s*\)/g, "") // parênteses vazios remanescentes
       .replace(/\s{2,}/g, " ")
       .trim();
+    if (!nomeLimpo) continue;
 
-    // procura CPF nas próximas 2 linhas (inclusive a mesma)
-    const janela = [linha, linhas[i + 1] || "", linhas[i + 2] || ""].join(" ");
-    const cpfs = extrairCpfsDoTexto(janela);
-    const cpf = cpfs[0];
-
-    // procura advogado/OAB nas próximas 3 linhas
-    const janelaAdv = [linhas[i + 1] || "", linhas[i + 2] || "", linhas[i + 3] || ""].join(
-      "\n"
+    // procura CPF/CNPJ na própria linha e nas 3 seguintes
+    const janela = [linha, linhas[i + 1] || "", linhas[i + 2] || "", linhas[i + 3] || ""].join(
+      " "
     );
+    const documentos = extrairDocumentosDoTexto(janela);
+    const documento = documentos[0];
+
+    // procura advogado/OAB nas próximas linhas (pode haver mais de um advogado)
+    const janelaAdv = [
+      linhas[i + 1] || "",
+      linhas[i + 2] || "",
+      linhas[i + 3] || "",
+      linhas[i + 4] || "",
+    ].join("\n");
     const oabs = extrairOabsDoTexto(janelaAdv);
     let advogadoNome: string | undefined;
     let advogadoOab: string | undefined;
-    const linhaAdvMatch = janelaAdv.match(/advogad[oa][:\s]*([^\n(]+)/i);
-    if (linhaAdvMatch) advogadoNome = linhaAdvMatch[1].trim();
+    const linhaAdvMatch = janelaAdv.match(/advogad[oa]s?\s*\(?[oa]?\)?[:\s]*([^\n(]+)/i);
+    if (linhaAdvMatch) advogadoNome = linhaAdvMatch[1].trim().replace(/\s{2,}/g, " ");
     if (oabs[0]) advogadoOab = oabs[0].valor;
 
     partes.push({
       polo,
       nomeCompleto: nomeLimpo,
-      cpf: cpf?.valor,
-      cpfValido: cpf ? cpf.valido : undefined,
+      cpf: documento?.valor,
+      cpfValido: documento ? documento.valido : undefined,
       advogadoNome,
       advogadoOab,
-      confianca: cpf || advogadoOab ? "alta" : "media",
+      confianca: documento || advogadoOab ? "alta" : "media",
     });
   }
 
@@ -183,15 +282,8 @@ export function extrairDadosDoTexto(textoBruto: string): DadosExtraidosProcesso 
     "classe processual",
     "classe",
   ]);
-  const assunto = buscarCampoSimples(linhas, ["assunto"]);
-  const lotacao = buscarCampoSimples(linhas, [
-    "orgao julgador",
-    "órgão julgador",
-    "vara",
-    "cejusc",
-    "lotacao",
-    "lotação",
-  ]);
+  const assunto = buscarCampoSimples(linhas, ["assunto principal", "assuntos", "assunto"]);
+  const lotacao = buscarCampoSimples(linhas, ROTULOS_LOTACAO);
   const comarca = buscarCampoSimples(linhas, ["comarca", "foro"]);
   const dataAudiencia = buscarDataAudiencia(texto);
   const partes = extrairPartes(linhas);

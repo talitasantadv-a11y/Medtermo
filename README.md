@@ -2,9 +2,10 @@
 
 Aplicação web fullstack para mediadores judiciais gerarem termos de sessão de
 mediação/conciliação. O mediador faz upload do PDF do processo exportado do
-PJe, o sistema extrai automaticamente os dados processuais, permite escolher
-um modelo de termo cadastrado e gera o documento formatado, pronto para
-impressão ou anexação ao PJe.
+PJe (ou busca dados oficiais direto no CNJ), o sistema extrai automaticamente
+os dados processuais, permite escolher um modelo de termo cadastrado e gera o
+documento formatado — em PDF ou em Word editável, com a logomarca e os dados
+de contato do CEJUSC — pronto para impressão ou anexação ao PJe.
 
 ## Stack
 
@@ -12,8 +13,33 @@ impressão ou anexação ao PJe.
 - **Backend:** Node.js + Express + TypeScript
 - **Banco de dados:** SQLite + Prisma ORM
 - **Extração de PDF:** pdf-parse, com fallback para OCR via tesseract.js
-- **Geração de PDF:** Puppeteer
+- **Dados oficiais do CNJ:** API pública DataJud
+- **Geração de PDF:** Puppeteer (Electron `printToPDF` no app desktop)
+- **Geração de Word:** biblioteca `docx`
 - **Autenticação:** JWT + bcrypt
+
+## Documento em Word, logomarca e integração com o CNJ
+
+- **Exportar em Word:** na etapa de preview (passo 5) e no histórico do
+  processo há um botão "Baixar em Word" além do PDF — gera um `.docx` nativo,
+  editável, com a mesma formatação do termo.
+- **CEJUSC (logomarca e rodapé):** cadastre em **CEJUSCs** o nome, a
+  logomarca e o endereço/telefone/e-mail de cada CEJUSC onde você atua, e
+  vincule um CEJUSC a cada modelo de termo (tela de edição do modelo). A logo
+  aparece no cabeçalho e os dados de contato no rodapé do PDF/Word gerado.
+- **Buscar dados oficiais no CNJ:** no passo 2 do fluxo de nova mediação há
+  um botão "Buscar no CNJ (DataJud)" que preenche classe, assunto e órgão
+  julgador direto da API pública do CNJ (não substitui os dados das partes,
+  que continuam vindo do PDF — por proteção de dados, a API do DataJud não
+  retorna nome/CPF). Requer cadastrar sua chave gratuita da API em **Perfil**
+  (obtida em [datajud-wiki.cnj.jus.br](https://datajud-wiki.cnj.jus.br/api-publica/acesso)).
+  Por enquanto a busca cobre os Tribunais de Justiça estaduais (Justiça
+  Estadual); outros segmentos (Federal, Trabalho etc.) podem ser adicionados
+  depois em `server/src/services/cnj/datajud.ts`.
+
+Veja também o [Manual de Construção de Modelos](docs/manual-modelos.md)
+(ou a versão em Word, `docs/Manual-Modelos-MediaTermo.docx`) para aprender a
+montar ou recriar um modelo de termo do zero.
 
 ## App desktop (Windows)
 
@@ -67,7 +93,9 @@ mediatermo/
 ├── client/         # React + TypeScript + Tailwind
 ├── server/         # Express + TypeScript
 ├── prisma/         # schema.prisma + seed.ts
-├── uploads/         # PDFs enviados pelos mediadores
+├── uploads/         # PDFs e logomarcas enviados pelos mediadores
+├── docs/            # Manual de construção de modelos (md e docx)
+├── desktop/         # App desktop Electron para Windows
 ```
 
 Veja `client/src` e `server/src` para a organização interna (components,
@@ -88,12 +116,15 @@ pages, controllers, services, etc.).
 
 1. **Processo** — informe o número CNJ (com validação de dígito verificador).
    Se o processo já existir, os dados são carregados automaticamente.
-2. **Dados do PDF** — envie o PDF do processo (upload com drag-and-drop) ou
-   preencha manualmente. Os dados extraídos aparecem destacados para revisão.
+2. **Dados do PDF** — envie o PDF do processo (upload com drag-and-drop),
+   busque classe/assunto/órgão julgador direto no CNJ (DataJud) ou preencha
+   manualmente. Os dados extraídos aparecem destacados para revisão, com
+   indicação da origem (PDF ou CNJ).
 3. **Sessão** — escolha o modelo de termo, preencha data/horário/modalidade e
    registre as presenças.
 4. **Resultado** — selecione o resultado da sessão; os campos específicos
    (termos do acordo, dados bancários, motivo de reagendamento etc.) aparecem
    dinamicamente conforme o modelo.
-5. **Preview e exportação** — revise o termo montado e gere o PDF final, que
-   fica salvo no histórico do processo.
+5. **Preview e exportação** — revise o termo montado e gere o PDF ou o Word
+   final (com logomarca e rodapé do CEJUSC vinculado ao modelo), que fica
+   salvo no histórico do processo.

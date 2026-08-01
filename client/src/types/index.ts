@@ -7,11 +7,26 @@ export interface Usuario {
   registroProfissional?: string | null;
   telefone?: string | null;
   cargo?: string | null;
+  datajudApiKey?: string | null;
+}
+
+export interface Cejusc {
+  id: number;
+  usuarioId: number;
+  nome: string;
+  logoPath?: string | null;
+  endereco?: string | null;
+  telefone?: string | null;
+  email?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Modelo {
   id: number;
   usuarioId: number;
+  cejuscId?: number | null;
+  cejusc?: Cejusc | null;
   nome: string;
   descricao?: string | null;
   blocos: Bloco[];

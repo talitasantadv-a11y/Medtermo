@@ -49,7 +49,7 @@ async function iniciar() {
   const { port } = await iniciarAppDesktop({
     port: PORTA_PREFERIDA,
     clientDistPath: path.join(bundleRoot, "client", "dist"),
-    migrationSqlPath: path.join(bundleRoot, "prisma", "migration.sql"),
+    migrationsDir: path.join(bundleRoot, "prisma", "migrations"),
   });
 
   const janela = new BrowserWindow({

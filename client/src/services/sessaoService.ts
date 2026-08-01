@@ -1,3 +1,4 @@
+import axios from "axios";
 import { api } from "./api";
 import { Sessao } from "../types";
 import { BlocoRenderizado } from "../types/termo";
@@ -41,9 +42,28 @@ export async function obterTermoMontado(
   return data;
 }
 
-export async function baixarPdfSessao(id: number, nomeArquivoSugerido: string): Promise<void> {
-  const response = await api.get(`/sessoes/${id}/pdf`, { responseType: "blob" });
-  const url = window.URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+async function baixarArquivo(
+  caminho: string,
+  nomeArquivoSugerido: string,
+  tipoMime: string
+): Promise<void> {
+  let response;
+  try {
+    response = await api.get(caminho, { responseType: "blob" });
+  } catch (erro) {
+    if (axios.isAxiosError(erro) && erro.response?.data instanceof Blob) {
+      const texto = await erro.response.data.text();
+      try {
+        const corpo = JSON.parse(texto);
+        throw new Error(corpo.erro || "Não foi possível gerar o arquivo.");
+      } catch {
+        throw new Error("Não foi possível gerar o arquivo.");
+      }
+    }
+    throw erro;
+  }
+
+  const url = window.URL.createObjectURL(new Blob([response.data], { type: tipoMime }));
   const link = document.createElement("a");
   link.href = url;
   link.download = nomeArquivoSugerido;
@@ -51,4 +71,16 @@ export async function baixarPdfSessao(id: number, nomeArquivoSugerido: string): 
   link.click();
   link.remove();
   window.URL.revokeObjectURL(url);
+}
+
+export async function baixarPdfSessao(id: number, nomeArquivoSugerido: string): Promise<void> {
+  return baixarArquivo(`/sessoes/${id}/pdf`, nomeArquivoSugerido, "application/pdf");
+}
+
+export async function baixarDocxSessao(id: number, nomeArquivoSugerido: string): Promise<void> {
+  return baixarArquivo(
+    `/sessoes/${id}/docx`,
+    nomeArquivoSugerido,
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  );
 }

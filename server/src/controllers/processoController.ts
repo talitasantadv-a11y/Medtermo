@@ -2,7 +2,8 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../utils/prisma";
 import { formatarCnj, validarCnj } from "../services/parser/cnj";
-import { validarCpf } from "../services/parser/cpf";
+import { validarDocumento } from "../services/parser/cpf";
+import { consultarProcessoDatajud, DatajudError, resolverAliasDatajud } from "../services/cnj/datajud";
 
 const parteSchema = z.object({
   id: z.number().optional(),
@@ -32,8 +33,9 @@ function validarPartes(partes: z.infer<typeof parteSchema>[]) {
     return "É necessário informar ao menos uma parte requerente e uma requerida.";
   }
   for (const p of partes) {
-    if (p.cpf && p.cpf.replace(/\D/g, "").length === 11 && !validarCpf(p.cpf)) {
-      return `CPF inválido para a parte "${p.nomeCompleto}".`;
+    const digitos = p.cpf?.replace(/\D/g, "") || "";
+    if (digitos && (digitos.length === 11 || digitos.length === 14) && !validarDocumento(p.cpf!)) {
+      return `CPF/CNPJ inválido para a parte "${p.nomeCompleto}".`;
     }
   }
   return null;
@@ -199,4 +201,40 @@ export async function criarOuAtualizarProcesso(req: Request, res: Response) {
   });
 
   return res.status(existente ? 200 : 201).json({ processo });
+}
+
+export async function consultarCnj(req: Request, res: Response) {
+  const numeroCnj = String(req.query.numeroCnj || "");
+  if (!validarCnj(numeroCnj)) {
+    return res.status(400).json({ erro: "Número CNJ inválido." });
+  }
+
+  const usuario = await prisma.usuario.findUnique({ where: { id: req.usuario!.id } });
+  if (!usuario?.datajudApiKey) {
+    return res.status(400).json({
+      erro:
+        "Cadastre sua chave da API pública DataJud (CNJ) em Perfil para usar a busca automática.",
+    });
+  }
+
+  if (!resolverAliasDatajud(numeroCnj)) {
+    return res.status(400).json({
+      erro:
+        "Este tribunal ainda não é suportado pela busca automática (por enquanto cobrimos a Justiça Estadual).",
+    });
+  }
+
+  try {
+    const dados = await consultarProcessoDatajud(numeroCnj, usuario.datajudApiKey);
+    if (!dados) {
+      return res.json({ encontrado: false });
+    }
+    return res.json({ encontrado: true, dados });
+  } catch (erro) {
+    if (erro instanceof DatajudError) {
+      return res.status(erro.status && erro.status < 500 ? 400 : 502).json({ erro: erro.message });
+    }
+    console.error("Erro ao consultar DataJud:", erro);
+    return res.status(502).json({ erro: "Erro inesperado ao consultar o DataJud." });
+  }
 }

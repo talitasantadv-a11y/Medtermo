@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { DadosExtraidosProcesso, Parte } from "../../types";
-import { BadgeConfianca, BadgeExtraidoDoPdf } from "../common/Badge";
-import { aplicarMascaraCpf, validarCpf } from "../../utils/cpf";
+import { DadosCnjDatajud } from "../../services/processoService";
+import { BadgeConfianca, BadgeExtraidoDoPdf, BadgeViaCnj } from "../common/Badge";
+import { aplicarMascaraDocumento, validarDocumento } from "../../utils/cpf";
 
 interface CampoEstado {
   valor: string;
   extraido: boolean;
+  origem?: "pdf" | "cnj";
   confianca?: "alta" | "media" | "baixa";
 }
 
@@ -32,11 +34,12 @@ export interface ProcessoRevisado {
 
 interface Props {
   dadosExtraidos: DadosExtraidosProcesso | null;
+  dadosCnj?: DadosCnjDatajud | null;
   partesIniciais?: Parte[];
   onDadosValidados: (dados: ProcessoRevisado, valido: boolean) => void;
 }
 
-export function RevisaoDados({ dadosExtraidos, partesIniciais, onDadosValidados }: Props) {
+export function RevisaoDados({ dadosExtraidos, dadosCnj, partesIniciais, onDadosValidados }: Props) {
   const [lotacao, setLotacao] = useState<CampoEstado>(campoVazio());
   const [comarca, setComarca] = useState<CampoEstado>(campoVazio());
   const [classeProcessual, setClasseProcessual] = useState<CampoEstado>(campoVazio());
@@ -62,17 +65,33 @@ export function RevisaoDados({ dadosExtraidos, partesIniciais, onDadosValidados 
 
     if (dadosExtraidos) {
       if (dadosExtraidos.lotacao)
-        setLotacao({ valor: dadosExtraidos.lotacao.valor, extraido: true, confianca: dadosExtraidos.lotacao.confianca });
+        setLotacao({
+          valor: dadosExtraidos.lotacao.valor,
+          extraido: true,
+          origem: "pdf",
+          confianca: dadosExtraidos.lotacao.confianca,
+        });
       if (dadosExtraidos.comarca)
-        setComarca({ valor: dadosExtraidos.comarca.valor, extraido: true, confianca: dadosExtraidos.comarca.confianca });
+        setComarca({
+          valor: dadosExtraidos.comarca.valor,
+          extraido: true,
+          origem: "pdf",
+          confianca: dadosExtraidos.comarca.confianca,
+        });
       if (dadosExtraidos.classeProcessual)
         setClasseProcessual({
           valor: dadosExtraidos.classeProcessual.valor,
           extraido: true,
+          origem: "pdf",
           confianca: dadosExtraidos.classeProcessual.confianca,
         });
       if (dadosExtraidos.assunto)
-        setAssunto({ valor: dadosExtraidos.assunto.valor, extraido: true, confianca: dadosExtraidos.assunto.confianca });
+        setAssunto({
+          valor: dadosExtraidos.assunto.valor,
+          extraido: true,
+          origem: "pdf",
+          confianca: dadosExtraidos.assunto.confianca,
+        });
 
       if (dadosExtraidos.partes.length > 0) {
         setPartes(
@@ -93,10 +112,33 @@ export function RevisaoDados({ dadosExtraidos, partesIniciais, onDadosValidados 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dadosExtraidos, partesIniciais]);
 
+  // A busca no DataJud (CNJ) só preenche campos ainda vazios — nunca
+  // sobrescreve o que já veio do PDF ou foi digitado manualmente. O CNJ não
+  // retorna nome/CPF das partes (proteção de dados), então só afeta
+  // classe/assunto/lotação.
+  useEffect(() => {
+    if (!dadosCnj) return;
+    if (dadosCnj.classe) {
+      setClasseProcessual((atual) =>
+        atual.valor ? atual : { valor: dadosCnj.classe!, extraido: true, origem: "cnj" }
+      );
+    }
+    if (dadosCnj.assuntos.length > 0) {
+      setAssunto((atual) =>
+        atual.valor ? atual : { valor: dadosCnj.assuntos.join("; "), extraido: true, origem: "cnj" }
+      );
+    }
+    if (dadosCnj.orgaoJulgador) {
+      setLotacao((atual) =>
+        atual.valor ? atual : { valor: dadosCnj.orgaoJulgador!, extraido: true, origem: "cnj" }
+      );
+    }
+  }, [dadosCnj]);
+
   useEffect(() => {
     const temRequerente = partes.some((p) => p.polo === "requerente" && p.valor.trim());
     const temRequerido = partes.some((p) => p.polo === "requerido" && p.valor.trim());
-    const cpfsValidos = partes.every((p) => !p.cpf || validarCpf(p.cpf));
+    const cpfsValidos = partes.every((p) => !p.cpf || validarDocumento(p.cpf));
     const valido = temRequerente && temRequerido && cpfsValidos;
 
     onDadosValidados(
@@ -144,14 +186,14 @@ export function RevisaoDados({ dadosExtraidos, partesIniciais, onDadosValidados 
       <div>
         <label className="label flex items-center gap-2">
           {label}
-          {estado.extraido && <BadgeExtraidoDoPdf />}
+          {estado.extraido && estado.origem === "cnj" ? <BadgeViaCnj /> : estado.extraido ? <BadgeExtraidoDoPdf /> : null}
           {estado.confianca && <BadgeConfianca nivel={estado.confianca} />}
         </label>
         <input
           className={`input ${estado.extraido ? "input-extraido" : ""}`}
           value={estado.valor}
           placeholder={estado.extraido ? "" : placeholderVazio}
-          onChange={(e) => setEstado({ ...estado, valor: e.target.value, extraido: false })}
+          onChange={(e) => setEstado({ ...estado, valor: e.target.value, extraido: false, origem: undefined })}
         />
       </div>
     );
@@ -185,7 +227,7 @@ export function RevisaoDados({ dadosExtraidos, partesIniciais, onDadosValidados 
               .map((p, indice) => ({ p, indice }))
               .filter(({ p }) => p.polo === polo)
               .map(({ p, indice }) => {
-                const cpfInvalido = !!p.cpf && !validarCpf(p.cpf);
+                const cpfInvalido = !!p.cpf && !validarDocumento(p.cpf);
                 return (
                   <div key={indice} className="card space-y-3">
                     <div className="flex items-start justify-between gap-2">
@@ -213,7 +255,7 @@ export function RevisaoDados({ dadosExtraidos, partesIniciais, onDadosValidados 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div>
                         <label className="label flex items-center gap-2">
-                          CPF
+                          CPF/CNPJ
                           {p.cpfExtraido && <BadgeExtraidoDoPdf />}
                         </label>
                         <input
@@ -222,10 +264,12 @@ export function RevisaoDados({ dadosExtraidos, partesIniciais, onDadosValidados 
                           }`}
                           value={p.cpf}
                           placeholder="não encontrado no PDF — preencha manualmente"
-                          onChange={(e) => atualizarParte(indice, "cpf", aplicarMascaraCpf(e.target.value))}
+                          onChange={(e) =>
+                            atualizarParte(indice, "cpf", aplicarMascaraDocumento(e.target.value))
+                          }
                         />
                         {cpfInvalido && (
-                          <p className="mt-1 text-xs text-red-600">CPF inválido. Verifique os dígitos.</p>
+                          <p className="mt-1 text-xs text-red-600">CPF/CNPJ inválido. Verifique os dígitos.</p>
                         )}
                       </div>
                       {polo === "requerido" && (

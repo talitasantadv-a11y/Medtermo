@@ -29,6 +29,9 @@ export function Layout({ children }: { children: ReactNode }) {
               <NavLink to="/modelos" className={linkClasses}>
                 Modelos
               </NavLink>
+              <NavLink to="/cejuscs" className={linkClasses}>
+                CEJUSCs
+              </NavLink>
               <NavLink to="/perfil" className={linkClasses}>
                 Perfil
               </NavLink>
@@ -49,6 +52,9 @@ export function Layout({ children }: { children: ReactNode }) {
           </NavLink>
           <NavLink to="/modelos" className={linkClasses}>
             Modelos
+          </NavLink>
+          <NavLink to="/cejuscs" className={linkClasses}>
+            CEJUSCs
           </NavLink>
           <NavLink to="/perfil" className={linkClasses}>
             Perfil

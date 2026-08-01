@@ -11,6 +11,7 @@ export default function Perfil() {
   const [cargo, setCargo] = useState(usuario?.cargo || "");
   const [registroProfissional, setRegistroProfissional] = useState(usuario?.registroProfissional || "");
   const [telefone, setTelefone] = useState(usuario?.telefone || "");
+  const [datajudApiKey, setDatajudApiKey] = useState(usuario?.datajudApiKey || "");
   const [senhaAtual, setSenhaAtual] = useState("");
   const [novaSenha, setNovaSenha] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -24,6 +25,7 @@ export default function Perfil() {
         cargo,
         registroProfissional,
         telefone,
+        datajudApiKey,
         ...(novaSenha ? { senhaAtual, novaSenha } : {}),
       });
       atualizarUsuario(atualizado);
@@ -70,6 +72,30 @@ export default function Perfil() {
         <div>
           <label className="label">Telefone</label>
           <input className="input" value={telefone} onChange={(e) => setTelefone(e.target.value)} />
+        </div>
+
+        <hr className="border-neutral-100" />
+        <div>
+          <label className="label">Chave da API DataJud (CNJ)</label>
+          <input
+            className="input font-mono text-xs"
+            value={datajudApiKey}
+            onChange={(e) => setDatajudApiKey(e.target.value)}
+            placeholder="Cole aqui a chave pública obtida no DataJud"
+          />
+          <p className="mt-1.5 text-xs text-neutral-400">
+            Usada para buscar classe, assunto e órgão julgador direto do CNJ ao cadastrar um
+            processo. Obtenha a sua gratuitamente em{" "}
+            <a
+              href="https://datajud-wiki.cnj.jus.br/api-publica/acesso"
+              target="_blank"
+              rel="noreferrer"
+              className="text-brand-700 underline"
+            >
+              datajud-wiki.cnj.jus.br
+            </a>
+            . Por proteção de dados, essa API não retorna nome/CPF das partes.
+          </p>
         </div>
 
         <hr className="border-neutral-100" />

@@ -1,12 +1,44 @@
 import { BlocoRenderizado } from "../../types/termo";
 import { formatarDataBr } from "../../utils/formatacao";
 
-export function TermoPreview({ blocos }: { blocos: BlocoRenderizado[] }) {
+export interface CejuscParaPreview {
+  nome?: string | null;
+  logoUrl?: string | null;
+  endereco?: string | null;
+  telefone?: string | null;
+  email?: string | null;
+}
+
+export function TermoPreview({
+  blocos,
+  cejusc,
+}: {
+  blocos: BlocoRenderizado[];
+  cejusc?: CejuscParaPreview | null;
+}) {
+  const linhasRodape = [
+    cejusc?.nome,
+    cejusc?.endereco,
+    [cejusc?.telefone, cejusc?.email].filter(Boolean).join(" — "),
+  ].filter((linha): linha is string => !!linha && linha.trim().length > 0);
+
   return (
     <div className="mx-auto max-w-2xl bg-white p-8 font-serif text-[13px] leading-relaxed text-neutral-900 shadow-sm ring-1 ring-neutral-200 sm:p-10">
+      {cejusc?.logoUrl && (
+        <div className="mb-5 flex justify-center">
+          <img src={cejusc.logoUrl} alt={cejusc.nome || "Logomarca"} className="h-16 object-contain" />
+        </div>
+      )}
       {blocos.map((bloco, indice) => (
         <BlocoView key={indice} bloco={bloco} />
       ))}
+      {linhasRodape.length > 0 && (
+        <div className="mt-10 border-t border-neutral-200 pt-3 text-center text-[10px] text-neutral-500">
+          {linhasRodape.map((linha, i) => (
+            <p key={i}>{linha}</p>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

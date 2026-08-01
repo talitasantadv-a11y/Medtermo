@@ -4,7 +4,7 @@ import { bootstrapBancoDeDados, semearDadosIniciais } from "./services/bootstrap
 export interface OpcoesIniciarDesktop {
   port: number;
   clientDistPath: string;
-  migrationSqlPath: string;
+  migrationsDir: string;
 }
 
 /**
@@ -16,7 +16,7 @@ export interface OpcoesIniciarDesktop {
  * Express também serve os arquivos estáticos do client (SPA).
  */
 export async function iniciarAppDesktop(opcoes: OpcoesIniciarDesktop) {
-  await bootstrapBancoDeDados(opcoes.migrationSqlPath);
+  await bootstrapBancoDeDados(opcoes.migrationsDir);
   await semearDadosIniciais();
 
   const app = createApp({ clientDistPath: opcoes.clientDistPath });

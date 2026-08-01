@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { Processo as ProcessoType } from "../types";
 import { obterProcesso } from "../services/processoService";
-import { baixarPdfSessao } from "../services/sessaoService";
+import { baixarDocxSessao, baixarPdfSessao } from "../services/sessaoService";
 import { mensagemErro } from "../services/api";
 import { Spinner } from "../components/common/Spinner";
 import { BadgeStatusSessao } from "../components/common/Badge";
@@ -16,6 +16,7 @@ export default function Processo() {
   const [processo, setProcesso] = useState<ProcessoType | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [baixando, setBaixando] = useState<number | null>(null);
+  const [baixandoDocx, setBaixandoDocx] = useState<number | null>(null);
 
   async function carregar() {
     if (!id) return;
@@ -44,6 +45,18 @@ export default function Processo() {
       toast.error(mensagemErro(erro));
     } finally {
       setBaixando(null);
+    }
+  }
+
+  async function handleBaixarDocx(sessaoId: number) {
+    if (!processo) return;
+    setBaixandoDocx(sessaoId);
+    try {
+      await baixarDocxSessao(sessaoId, `termo-${processo.numeroCnj}-sessao-${sessaoId}.docx`);
+    } catch (erro) {
+      toast.error(mensagemErro(erro));
+    } finally {
+      setBaixandoDocx(null);
     }
   }
 
@@ -129,14 +142,24 @@ export default function Processo() {
                   </div>
                 </div>
                 {s.status === "finalizado" && (
-                  <button
-                    className="btn-secondary"
-                    onClick={() => handleBaixar(s.id)}
-                    disabled={baixando === s.id}
-                  >
-                    {baixando === s.id && <Spinner />}
-                    Baixar termo
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      className="btn-secondary"
+                      onClick={() => handleBaixarDocx(s.id)}
+                      disabled={baixandoDocx === s.id}
+                    >
+                      {baixandoDocx === s.id && <Spinner />}
+                      Word
+                    </button>
+                    <button
+                      className="btn-secondary"
+                      onClick={() => handleBaixar(s.id)}
+                      disabled={baixando === s.id}
+                    >
+                      {baixando === s.id && <Spinner />}
+                      PDF
+                    </button>
+                  </div>
                 )}
               </div>
             ))}

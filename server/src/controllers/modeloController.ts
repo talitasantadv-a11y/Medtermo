@@ -11,14 +11,27 @@ const modeloSchema = z.object({
   blocos: z.array(blocoSchema).min(1, "O modelo deve ter ao menos um bloco."),
   camposCustomizados: z.array(blocoSchema).optional(),
   ativo: z.boolean().optional(),
+  cejuscId: z.number().nullable().optional(),
 });
 
-function serializarModelo<T extends { blocos: string; camposCustomizados: string | null }>(modelo: T) {
+function serializarModelo<
+  T extends {
+    blocos: string;
+    camposCustomizados: string | null;
+    cejusc?: { logoPath: string | null } | null;
+  }
+>(modelo: T) {
   return {
     ...modelo,
     blocos: deJson(modelo.blocos, []),
     camposCustomizados: deJson(modelo.camposCustomizados, []),
   };
+}
+
+async function validarCejusc(cejuscId: number | null | undefined, usuarioId: number) {
+  if (cejuscId === null || cejuscId === undefined) return true;
+  const cejusc = await prisma.cejusc.findFirst({ where: { id: cejuscId, usuarioId } });
+  return !!cejusc;
 }
 
 export async function listarModelos(req: Request, res: Response) {
@@ -28,6 +41,7 @@ export async function listarModelos(req: Request, res: Response) {
       usuarioId: req.usuario!.id,
       ...(ativo !== undefined ? { ativo: ativo === "true" } : {}),
     },
+    include: { cejusc: true },
     orderBy: { createdAt: "asc" },
   });
   return res.json({ modelos: modelos.map(serializarModelo) });
@@ -37,6 +51,7 @@ export async function obterModelo(req: Request, res: Response) {
   const id = Number(req.params.id);
   const modelo = await prisma.modelo.findFirst({
     where: { id, usuarioId: req.usuario!.id },
+    include: { cejusc: true },
   });
   if (!modelo) return res.status(404).json({ erro: "Modelo não encontrado." });
   return res.json({ modelo: serializarModelo(modelo) });
@@ -47,7 +62,11 @@ export async function criarModelo(req: Request, res: Response) {
   if (!parsed.success) {
     return res.status(400).json({ erro: parsed.error.issues[0].message });
   }
-  const { nome, descricao, blocos, camposCustomizados, ativo } = parsed.data;
+  const { nome, descricao, blocos, camposCustomizados, ativo, cejuscId } = parsed.data;
+
+  if (!(await validarCejusc(cejuscId, req.usuario!.id))) {
+    return res.status(400).json({ erro: "CEJUSC inválido." });
+  }
 
   const modelo = await prisma.modelo.create({
     data: {
@@ -57,7 +76,9 @@ export async function criarModelo(req: Request, res: Response) {
       blocos: paraJson(blocos),
       camposCustomizados: paraJson(camposCustomizados ?? []),
       ativo: ativo ?? true,
+      cejuscId: cejuscId ?? null,
     },
+    include: { cejusc: true },
   });
   return res.status(201).json({ modelo: serializarModelo(modelo) });
 }
@@ -74,7 +95,12 @@ export async function atualizarModelo(req: Request, res: Response) {
   });
   if (!modelo) return res.status(404).json({ erro: "Modelo não encontrado." });
 
-  const { nome, descricao, blocos, camposCustomizados, ativo } = parsed.data;
+  const { nome, descricao, blocos, camposCustomizados, ativo, cejuscId } = parsed.data;
+
+  if (cejuscId !== undefined && !(await validarCejusc(cejuscId, req.usuario!.id))) {
+    return res.status(400).json({ erro: "CEJUSC inválido." });
+  }
+
   const atualizado = await prisma.modelo.update({
     where: { id },
     data: {
@@ -85,7 +111,9 @@ export async function atualizarModelo(req: Request, res: Response) {
         ? { camposCustomizados: paraJson(camposCustomizados) }
         : {}),
       ...(ativo !== undefined ? { ativo } : {}),
+      ...(cejuscId !== undefined ? { cejuscId } : {}),
     },
+    include: { cejusc: true },
   });
   return res.json({ modelo: serializarModelo(atualizado) });
 }

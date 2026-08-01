@@ -6,12 +6,21 @@ import { Spinner } from "../components/common/Spinner";
 import { aplicarMascaraCnj, cnjEstaCompleto, validarCnj } from "../utils/cnj";
 import {
   buscarProcessoPorCnj,
+  consultarCnj,
+  DadosCnjDatajud,
   iniciarProcesso,
   listarUploads,
   salvarProcesso,
 } from "../services/processoService";
 import { listarModelos } from "../services/modeloService";
-import { criarSessao, atualizarSessao, obterTermoMontado, baixarPdfSessao } from "../services/sessaoService";
+import {
+  criarSessao,
+  atualizarSessao,
+  obterTermoMontado,
+  baixarPdfSessao,
+  baixarDocxSessao,
+} from "../services/sessaoService";
+import { urlDoLogo } from "../services/cejuscService";
 import { mensagemErro } from "../services/api";
 import { DadosExtraidosProcesso, Modelo, Processo, Sessao, UploadProcesso } from "../types";
 import { BlocoRenderizado } from "../types/termo";
@@ -35,6 +44,8 @@ export default function NovaMediacao() {
   const [modoEntrada, setModoEntrada] = useState<"escolher" | "upload" | "manual">("escolher");
   const [uploads, setUploads] = useState<UploadProcesso[]>([]);
   const [dadosConsolidados, setDadosConsolidados] = useState<DadosExtraidosProcesso | null>(null);
+  const [dadosCnj, setDadosCnj] = useState<DadosCnjDatajud | null>(null);
+  const [buscandoCnj, setBuscandoCnj] = useState(false);
   const [revisao, setRevisao] = useState<{ dados: ProcessoRevisado; valido: boolean } | null>(null);
   const [salvandoProcesso, setSalvandoProcesso] = useState(false);
 
@@ -48,6 +59,7 @@ export default function NovaMediacao() {
   const [faltantes, setFaltantes] = useState<string[]>([]);
   const [carregandoTermo, setCarregandoTermo] = useState(false);
   const [gerandoPdf, setGerandoPdf] = useState(false);
+  const [gerandoDocx, setGerandoDocx] = useState(false);
 
   useEffect(() => {
     listarModelos(true).then(setModelos).catch((e) => toast.error(mensagemErro(e)));
@@ -88,6 +100,24 @@ export default function NovaMediacao() {
       setDadosConsolidados(consolidados);
     } catch (erro) {
       toast.error(mensagemErro(erro));
+    }
+  }
+
+  async function handleBuscarCnj() {
+    if (!processo) return;
+    setBuscandoCnj(true);
+    try {
+      const { encontrado, dados } = await consultarCnj(processo.numeroCnj);
+      if (encontrado && dados) {
+        setDadosCnj(dados);
+        toast.success("Dados oficiais do CNJ carregados.");
+      } else {
+        toast.error("Processo não encontrado na base do DataJud (CNJ).");
+      }
+    } catch (erro) {
+      toast.error(mensagemErro(erro));
+    } finally {
+      setBuscandoCnj(false);
     }
   }
 
@@ -178,6 +208,20 @@ export default function NovaMediacao() {
     }
   }
 
+  async function handleGerarDocx() {
+    if (!sessao || !processo) return;
+    setGerandoDocx(true);
+    try {
+      await baixarDocxSessao(sessao.id, `termo-${processo.numeroCnj}.docx`);
+      toast.success("Termo gerado em Word e salvo no histórico do processo.");
+      navigate(`/processos/${processo.id}`);
+    } catch (erro) {
+      toast.error(mensagemErro(erro));
+    } finally {
+      setGerandoDocx(false);
+    }
+  }
+
   const modeloDaSessao = modelos.find((m) => m.id === sessao?.modeloId);
 
   return (
@@ -245,10 +289,26 @@ export default function NovaMediacao() {
             {modoEntrada !== "escolher" && (
               <>
                 <hr className="border-neutral-100" />
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                  <p className="text-xs text-neutral-500">
+                    Também é possível puxar classe, assunto e órgão julgador direto do CNJ
+                    (não substitui os dados das partes, que vêm do PDF).
+                  </p>
+                  <button
+                    type="button"
+                    className="btn-secondary shrink-0 !px-3 !py-1.5 text-xs"
+                    onClick={handleBuscarCnj}
+                    disabled={buscandoCnj}
+                  >
+                    {buscandoCnj && <Spinner />}
+                    🔍 Buscar no CNJ (DataJud)
+                  </button>
+                </div>
                 <div>
                   <h3 className="mb-3 text-sm font-semibold text-neutral-700">Revisão dos dados</h3>
                   <RevisaoDados
                     dadosExtraidos={dadosConsolidados}
+                    dadosCnj={dadosCnj}
                     onDadosValidados={(dados, valido) => setRevisao({ dados, valido })}
                   />
                 </div>
@@ -301,10 +361,31 @@ export default function NovaMediacao() {
                     Campos obrigatórios pendentes: {faltantes.join(", ")}. Volte à etapa anterior para preenchê-los.
                   </div>
                 )}
-                <TermoPreview blocos={termo} />
-                <div className="flex gap-3">
+                <TermoPreview
+                  blocos={termo}
+                  cejusc={
+                    modeloDaSessao?.cejusc
+                      ? {
+                          nome: modeloDaSessao.cejusc.nome,
+                          logoUrl: urlDoLogo(modeloDaSessao.cejusc),
+                          endereco: modeloDaSessao.cejusc.endereco,
+                          telefone: modeloDaSessao.cejusc.telefone,
+                          email: modeloDaSessao.cejusc.email,
+                        }
+                      : null
+                  }
+                />
+                <div className="flex flex-wrap gap-3">
                   <button className="btn-secondary" onClick={() => setPasso(4)}>
                     Voltar
+                  </button>
+                  <button
+                    className="btn-secondary flex-1"
+                    onClick={handleGerarDocx}
+                    disabled={gerandoDocx || faltantes.length > 0}
+                  >
+                    {gerandoDocx && <Spinner />}
+                    📝 Baixar em Word
                   </button>
                   <button
                     className="btn-primary flex-1"
