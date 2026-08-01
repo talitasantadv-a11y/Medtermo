@@ -1,0 +1,90 @@
+name: Build Windows Desktop App
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - claude/mediatermo-fullstack-app-fh93bo
+    paths:
+      - "desktop/**"
+      - "server/**"
+      - "client/**"
+      - "prisma/**"
+      - ".github/workflows/build-windows-desktop.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependências (root/server/client)
+        run: npm install
+
+      - name: Gerar Prisma Client (engine Windows)
+        run: npx prisma generate --schema=prisma/schema.prisma
+
+      - name: Buildar client e server, montar app-bundle
+        shell: bash
+        run: bash desktop/scripts/build-bundle.sh
+
+      - name: Instalar dependências do Electron
+        working-directory: desktop
+        run: npm install
+
+      - name: Empacotar instalador Windows (.exe)
+        working-directory: desktop
+        run: npx electron-builder --win nsis portable --x64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Smoke test — iniciar o app empacotado e checar a API
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem "desktop/release/win-unpacked/MediaTermo.exe"
+          Start-Process -FilePath $exe.FullName
+          $ok = $false
+          for ($i = 0; $i -lt 30; $i++) {
+            Start-Sleep -Seconds 2
+            try {
+              $resp = Invoke-WebRequest -Uri "http://127.0.0.1:4899/api/health" -UseBasicParsing -TimeoutSec 3
+              if ($resp.StatusCode -eq 200) { $ok = $true; break }
+            } catch {}
+          }
+          Get-Process MediaTermo -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (-not $ok) {
+            Write-Error "O app não respondeu em http://127.0.0.1:4899/api/health a tempo."
+            exit 1
+          }
+          Write-Host "OK: app respondeu com sucesso."
+
+      - name: Upload dos instaladores como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mediatermo-windows-${{ github.run_number }}
+          path: |
+            desktop/release/*.exe
+          retention-days: 30
+
+      - name: Publicar Release com os instaladores
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-build-${{ github.run_number }}
+          name: MediaTermo Desktop (build ${{ github.run_number }})
+          body: |
+            Build automática do app desktop do MediaTermo para Windows, gerada a partir do commit ${{ github.sha }}.
+
+            - `MediaTermo Setup *.exe`: instalador (NSIS) — cria atalhos e desinstalador.
+            - `MediaTermo *.exe` (sem "Setup"): versão portátil — executa direto, sem instalar.
+
+            Login de demonstração: demo@mediatermo.com.br / mediatermo123
+          files: |
+            desktop/release/*.exe
+          prerelease: true

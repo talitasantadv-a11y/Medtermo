@@ -1,0 +1,52 @@
+{
+  "name": "mediatermo-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MediaTermo — aplicativo desktop (Electron)",
+  "main": "main.js",
+  "author": "MediaTermo",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/talitasantadv-a11y/Medtermo.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win nsis portable"
+  },
+  "build": {
+    "appId": "br.com.mediatermo.desktop",
+    "productName": "MediaTermo",
+    "asar": false,
+    "publish": null,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "app-bundle",
+        "to": "app-bundle",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  }
+}

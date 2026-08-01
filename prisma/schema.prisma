@@ -4,7 +4,10 @@
 // (ver server/src/types e client/src/types para os valores aceitos).
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // "windows" garante que o engine do Prisma para Windows seja baixado e
+  // empacotado no app desktop (gerado/rodando neste ambiente Linux).
+  binaryTargets = ["native", "windows"]
 }
 
 datasource db {

@@ -15,6 +15,15 @@ impressão ou anexação ao PJe.
 - **Geração de PDF:** Puppeteer
 - **Autenticação:** JWT + bcrypt
 
+## App desktop (Windows)
+
+Além de rodar como app web, o MediaTermo pode ser empacotado como um
+aplicativo desktop (Electron) — um `.exe` que já embute o backend, sem precisar
+instalar Node.js. Veja [`desktop/README.md`](desktop/README.md) para como
+buildar, ou baixe o instalador mais recente na aba
+[**Releases**](../../releases) do repositório (gerado automaticamente pelo
+workflow `Build Windows Desktop App`).
+
 ## Setup (comando único)
 
 ```bash
