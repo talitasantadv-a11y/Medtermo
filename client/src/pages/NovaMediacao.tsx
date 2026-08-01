@@ -76,10 +76,17 @@ export default function NovaMediacao() {
     setVerificando(true);
     try {
       const { encontrado, processo: encontradoProcesso } = await buscarProcessoPorCnj(numeroCnj);
-      if (encontrado && encontradoProcesso) {
+      if (encontrado && encontradoProcesso && encontradoProcesso.partes.length > 0) {
+        // Processo com dados já confirmados (partes cadastradas) — pula direto para a sessão.
         setProcesso(encontradoProcesso);
         toast.success("Processo já cadastrado — dados carregados automaticamente.");
         setPasso(3);
+      } else if (encontrado && encontradoProcesso) {
+        // Processo iniciado antes mas ainda sem dados confirmados (rascunho) — volta para
+        // o passo 2 para completar/revisar, recuperando uploads já enviados anteriormente.
+        setProcesso(encontradoProcesso);
+        await atualizarConsolidados(encontradoProcesso.id);
+        setPasso(2);
       } else {
         const rascunho = await iniciarProcesso(numeroCnj);
         setProcesso(rascunho);
