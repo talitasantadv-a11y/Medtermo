@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { Processo } from "../types";
-import { listarProcessos } from "../services/processoService";
+import { excluirProcesso, listarProcessos } from "../services/processoService";
 import { mensagemErro } from "../services/api";
 import { BadgeStatusSessao } from "../components/common/Badge";
 import { Spinner } from "../components/common/Spinner";
@@ -21,6 +21,20 @@ export default function Dashboard() {
   const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState("");
   const [status, setStatus] = useState("");
+
+  async function handleExcluir(e: React.MouseEvent, p: Processo) {
+    e.stopPropagation();
+    if (!confirm(`Excluir a mediação do processo ${p.numeroCnj}? Essa ação não pode ser desfeita.`)) {
+      return;
+    }
+    try {
+      await excluirProcesso(p.id);
+      toast.success("Mediação excluída.");
+      carregar();
+    } catch (erro) {
+      toast.error(mensagemErro(erro));
+    }
+  }
 
   async function carregar() {
     setCarregando(true);
@@ -91,15 +105,31 @@ export default function Dashboard() {
           {processos.map((p) => {
             const requerentes = p.partes.filter((pt) => pt.polo === "requerente").map((pt) => pt.nomeCompleto).join(", ");
             const requeridos = p.partes.filter((pt) => pt.polo === "requerido").map((pt) => pt.nomeCompleto).join(", ");
+            const podeExcluir = p.ultimaSessao?.status !== "finalizado";
             return (
-              <button
+              <div
                 key={p.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => navigate(`/processos/${p.id}`)}
-                className="card text-left transition-shadow hover:shadow-md"
+                onKeyDown={(e) => e.key === "Enter" && navigate(`/processos/${p.id}`)}
+                className="card cursor-pointer text-left transition-shadow hover:shadow-md"
               >
                 <div className="mb-2 flex items-start justify-between gap-2">
                   <span className="font-mono text-sm font-medium text-neutral-800">{p.numeroCnj}</span>
-                  <BadgeStatusSessao status={p.statusAtual || "pendente"} />
+                  <div className="flex items-center gap-2">
+                    <BadgeStatusSessao status={p.statusAtual || "pendente"} />
+                    {podeExcluir && (
+                      <button
+                        type="button"
+                        title="Excluir mediação"
+                        className="text-neutral-300 hover:text-red-600"
+                        onClick={(e) => handleExcluir(e, p)}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <p className="truncate text-sm text-neutral-600">
                   <span className="text-neutral-400">Req.: </span>
@@ -114,7 +144,7 @@ export default function Dashboard() {
                     ? `Última sessão: ${formatarDataBr(p.ultimaSessao.dataSessao)}`
                     : "Nenhuma sessão registrada"}
                 </p>
-              </button>
+              </div>
             );
           })}
         </div>

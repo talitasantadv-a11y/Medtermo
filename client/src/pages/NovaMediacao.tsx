@@ -8,6 +8,7 @@ import {
   buscarProcessoPorCnj,
   consultarCnj,
   DadosCnjDatajud,
+  excluirProcesso,
   iniciarProcesso,
   listarUploads,
   salvarProcesso,
@@ -39,6 +40,8 @@ export default function NovaMediacao() {
   const [numeroCnj, setNumeroCnj] = useState(() => aplicarMascaraCnj(searchParams.get("cnj") || ""));
   const [verificando, setVerificando] = useState(false);
   const [processo, setProcesso] = useState<Processo | null>(null);
+  const [rascunhoEncontrado, setRascunhoEncontrado] = useState<Processo | null>(null);
+  const [recomecando, setRecomecando] = useState(false);
 
   // Passo 2
   const [uploads, setUploads] = useState<UploadProcesso[]>([]);
@@ -82,11 +85,9 @@ export default function NovaMediacao() {
         toast.success("Processo já cadastrado — dados carregados automaticamente.");
         setPasso(3);
       } else if (encontrado && encontradoProcesso) {
-        // Processo iniciado antes mas ainda sem dados confirmados (rascunho) — volta para
-        // o passo 2 para completar/revisar, recuperando uploads já enviados anteriormente.
-        setProcesso(encontradoProcesso);
-        await atualizarConsolidados(encontradoProcesso.id);
-        setPasso(2);
+        // Processo iniciado antes mas ainda sem dados confirmados (rascunho) — deixa o
+        // mediador escolher entre continuar de onde parou ou começar do zero.
+        setRascunhoEncontrado(encontradoProcesso);
       } else {
         const rascunho = await iniciarProcesso(numeroCnj);
         setProcesso(rascunho);
@@ -96,6 +97,30 @@ export default function NovaMediacao() {
       toast.error(mensagemErro(erro));
     } finally {
       setVerificando(false);
+    }
+  }
+
+  async function handleContinuarRascunho() {
+    if (!rascunhoEncontrado) return;
+    setProcesso(rascunhoEncontrado);
+    await atualizarConsolidados(rascunhoEncontrado.id);
+    setRascunhoEncontrado(null);
+    setPasso(2);
+  }
+
+  async function handleComecarNovo() {
+    if (!rascunhoEncontrado) return;
+    setRecomecando(true);
+    try {
+      await excluirProcesso(rascunhoEncontrado.id);
+      const rascunho = await iniciarProcesso(rascunhoEncontrado.numeroCnj);
+      setProcesso(rascunho);
+      setRascunhoEncontrado(null);
+      setPasso(2);
+    } catch (erro) {
+      toast.error(mensagemErro(erro));
+    } finally {
+      setRecomecando(false);
     }
   }
 
@@ -250,14 +275,41 @@ export default function NovaMediacao() {
                 className="input font-mono"
                 placeholder="NNNNNNN-DD.AAAA.J.TR.OOOO"
                 value={numeroCnj}
-                onChange={(e) => setNumeroCnj(aplicarMascaraCnj(e.target.value))}
+                onChange={(e) => {
+                  setNumeroCnj(aplicarMascaraCnj(e.target.value));
+                  setRascunhoEncontrado(null);
+                }}
                 maxLength={25}
               />
             </div>
-            <button className="btn-primary w-full" onClick={handleVerificarCnj} disabled={verificando}>
-              {verificando && <Spinner />}
-              Verificar processo
-            </button>
+
+            {rascunhoEncontrado ? (
+              <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-4">
+                <p className="text-sm text-amber-800">
+                  Já existe uma mediação iniciada para este processo, mas ainda sem dados confirmados.
+                  Deseja continuar de onde parou ou começar um novo processo do zero (isso apaga o que
+                  já foi salvo para ele)?
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <button className="btn-primary" onClick={handleContinuarRascunho} disabled={recomecando}>
+                    Continuar de onde parei
+                  </button>
+                  <button
+                    className="btn-secondary !border-red-200 !text-red-600 hover:!bg-red-50"
+                    onClick={handleComecarNovo}
+                    disabled={recomecando}
+                  >
+                    {recomecando && <Spinner />}
+                    Começar um novo (excluir o anterior)
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button className="btn-primary w-full" onClick={handleVerificarCnj} disabled={verificando}>
+                {verificando && <Spinner />}
+                Verificar processo
+              </button>
+            )}
           </div>
         )}
 

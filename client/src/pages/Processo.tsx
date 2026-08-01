@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { Processo as ProcessoType } from "../types";
-import { obterProcesso } from "../services/processoService";
+import { excluirProcesso, obterProcesso } from "../services/processoService";
 import { baixarDocxSessao, baixarPdfSessao } from "../services/sessaoService";
 import { mensagemErro } from "../services/api";
 import { Spinner } from "../components/common/Spinner";
@@ -17,6 +17,7 @@ export default function Processo() {
   const [carregando, setCarregando] = useState(true);
   const [baixando, setBaixando] = useState<number | null>(null);
   const [baixandoDocx, setBaixandoDocx] = useState<number | null>(null);
+  const [excluindo, setExcluindo] = useState(false);
 
   async function carregar() {
     if (!id) return;
@@ -72,6 +73,24 @@ export default function Processo() {
 
   const requerentes = processo.partes.filter((p) => p.polo === "requerente");
   const requeridos = processo.partes.filter((p) => p.polo === "requerido");
+  const temSessaoFinalizada = (processo.sessoes || []).some((s) => s.status === "finalizado");
+
+  async function handleExcluir() {
+    if (!processo) return;
+    if (!confirm(`Excluir a mediação do processo ${processo.numeroCnj}? Essa ação não pode ser desfeita.`)) {
+      return;
+    }
+    setExcluindo(true);
+    try {
+      await excluirProcesso(processo.id);
+      toast.success("Mediação excluída.");
+      navigate("/");
+    } catch (erro) {
+      toast.error(mensagemErro(erro));
+    } finally {
+      setExcluindo(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -83,12 +102,25 @@ export default function Processo() {
             {processo.comarca ? ` • ${processo.comarca}` : ""}
           </p>
         </div>
-        <button
-          className="btn-primary"
-          onClick={() => navigate(`/nova-mediacao?cnj=${encodeURIComponent(processo.numeroCnj)}`)}
-        >
-          + Nova sessão
-        </button>
+        <div className="flex gap-2">
+          {!temSessaoFinalizada && (
+            <button
+              className="btn-secondary !border-red-200 !text-red-600 hover:!bg-red-50"
+              onClick={handleExcluir}
+              disabled={excluindo}
+              title="Excluir esta mediação (só é possível sem termo finalizado)"
+            >
+              {excluindo && <Spinner />}
+              Excluir mediação
+            </button>
+          )}
+          <button
+            className="btn-primary"
+            onClick={() => navigate(`/nova-mediacao?cnj=${encodeURIComponent(processo.numeroCnj)}`)}
+          >
+            + Nova sessão
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

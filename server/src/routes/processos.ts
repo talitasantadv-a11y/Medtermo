@@ -7,6 +7,7 @@ import {
   iniciarProcesso,
   listarProcessos,
   obterProcesso,
+  removerProcesso,
 } from "../controllers/processoController";
 import { enviarUpload, listarUploads, removerUpload } from "../controllers/uploadController";
 import { uploadPdf } from "../middleware/upload";
@@ -20,6 +21,7 @@ router.get("/consultar-cnj", consultarCnj);
 router.post("/iniciar", iniciarProcesso);
 router.get("/:id", obterProcesso);
 router.post("/", criarOuAtualizarProcesso);
+router.delete("/:id", removerProcesso);
 
 router.get("/:id/uploads", listarUploads);
 router.post("/:id/uploads", uploadPdf.single("arquivo"), enviarUpload);

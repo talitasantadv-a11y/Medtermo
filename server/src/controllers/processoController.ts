@@ -1,3 +1,4 @@
+import fs from "fs";
 import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../utils/prisma";
@@ -201,6 +202,29 @@ export async function criarOuAtualizarProcesso(req: Request, res: Response) {
   });
 
   return res.status(existente ? 200 : 201).json({ processo });
+}
+
+export async function removerProcesso(req: Request, res: Response) {
+  const id = Number(req.params.id);
+  const processo = await prisma.processo.findFirst({
+    where: { id, usuarioId: req.usuario!.id },
+    include: { sessoes: true, uploads: true },
+  });
+  if (!processo) return res.status(404).json({ erro: "Processo não encontrado." });
+
+  const temSessaoFinalizada = processo.sessoes.some((s) => s.status === "finalizado");
+  if (temSessaoFinalizada) {
+    return res.status(409).json({
+      erro: "Não é possível excluir: este processo já tem termo finalizado. O histórico precisa ser preservado.",
+    });
+  }
+
+  await prisma.processo.delete({ where: { id } });
+  for (const upload of processo.uploads) {
+    fs.unlink(upload.arquivoPath, () => {});
+  }
+
+  return res.status(204).send();
 }
 
 export async function consultarCnj(req: Request, res: Response) {

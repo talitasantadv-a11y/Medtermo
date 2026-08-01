@@ -68,6 +68,10 @@ export async function removerUpload(processoId: number, uploadId: number): Promi
   await api.delete(`/processos/${processoId}/uploads/${uploadId}`);
 }
 
+export async function excluirProcesso(id: number): Promise<void> {
+  await api.delete(`/processos/${id}`);
+}
+
 export interface DadosCnjDatajud {
   classe?: string;
   assuntos: string[];
